@@ -18,7 +18,7 @@ Author URI: http://www.oxymoronical.com/
 
 function gpx_display_track($args) {
   $url = $args['url'];
-  return '<iframe src="' . plugins_url('track.php', __FILE__) . '?url=' . urlencode($url) . '" style="width: 600px; height: 450px; margin: auto"></iframe>';
+  return '<div style="text-align: center"><iframe src="' . plugins_url('track.php', __FILE__) . '?url=' . urlencode($url) . '" style="width: 700px; height: 600px"></iframe></div>';
 }
 
 add_shortcode('gpx', 'gpx_display_track');
