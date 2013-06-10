@@ -47,8 +47,8 @@ header('Content-Type: text/plain');
 foreach ($results['photo'] as $photo) {
   $photo = $f->photos_getInfo($photo['id'], $photo['secret']);
 
-  $url = 'http://www.flickr.com/photos/' . $photo['owner'] . '/' . $photo['id'];
-  $thumbnail = 'http://farm' . $photo['farm'] . '.staticflickr.com/' . $photo['server'] . '/' . $photo['id'] . '_' . $photo['secret'] . '_t.jpg';
+  $url = 'http://www.flickr.com/photos/' . $photo['owner']['nsid'] . '/' . $photo['id'];
+  $thumbnail = 'http://farm' . $photo['farm'] . '.staticflickr.com/' . $photo['server'] . '/' . $photo['id'] . '_' . $photo['secret'] . '_m.jpg';
   $title = $photo['title'];
   $long = $photo['location']['longitude'];
   $lat = $photo['location']['latitude'];
