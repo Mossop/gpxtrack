@@ -23,23 +23,30 @@ $bounds = $gpx->getBounds();
   </style>
   <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&amp;sensor=false"></script>
   <script>
-function addWaypoint(map, latlng, name, thumbnail, link) {
-  var infowindow = new google.maps.InfoWindow({
-    content: '<div id="content">\n' +
-'  <h3>' + name + '</h3>\n' +
-'  <p style="text-align: center"><a href="' + link + '" target="_blank"><img src="' + thumbnail + '"></a></p>\n' +
-'</div>'
-  });
+var lastWindow = null;
 
+function addWaypoint(map, latlng, name, thumbnail, link) {
   var marker = new google.maps.Marker({
     position: latlng,
     map: map,
     title: name
   });
 
-  google.maps.event.addListener(marker, 'click', function() {
-    infowindow.open(map, marker);
-  });
+  if (thumbnail && link) {
+    var infowindow = new google.maps.InfoWindow({
+      content: '<div id="content">\n' +
+  '  <h3>' + name + '</h3>\n' +
+  '  <p style="text-align: center"><a href="' + link + '" target="_blank"><img src="' + thumbnail + '"></a></p>\n' +
+  '</div>'
+    });
+
+    google.maps.event.addListener(marker, 'click', function() {
+      if (lastWindow)
+        lastWindow.close();
+      infowindow.open(map, marker);
+      lastWindow = infowindow;
+    });
+  }
 }
 
 function initialize() {
