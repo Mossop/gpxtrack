@@ -16,6 +16,13 @@ Author URI: http://www.oxymoronical.com/
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+function gpx_display_track($args) {
+  $url = $args['url'];
+  return '<iframe src="' . plugins_url('track.php', __FILE__) . '?url=' . urlencode($url) . '" style="width: 600px; height: 450px; margin: auto"></iframe>';
+}
+
+add_shortcode('gpx', 'gpx_display_track');
+
 add_action('admin_menu', 'gpx_tools_menu');
 
 function gpx_tools_menu() {
