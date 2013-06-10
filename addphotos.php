@@ -14,6 +14,11 @@ if (!is_uploaded_file($_FILES['gpx']['tmp_name'])) {
   die('No GPX track supplied');
 }
 
+$options = get_option('gpx-settings');
+if (!$options['flickr-key']) {
+  die("No Flickr API key provided.");
+}
+
 require('gpx.php');
 
 $gpx = gpx_load_file($_FILES['gpx']['tmp_name']);
@@ -77,16 +82,39 @@ foreach ($tracks as $track) {
   }
 }
 
-function fdate($time) {
-  return $time->format('Y-m-d');
-}
-
 $mintime->modify('-1 day');
 $maxtime->modify('+2 days');
 
-$bbox = $minlon . "," . $minlat . "," . $maxlon . "," . $maxlat;
+$args = array(
+  'min_taken_date' => $mintime->format('Y-m-d'),
+  'max_taken_date' => $maxtime->format('Y-m-d'),
+  'bbox' => $minlon . "," . $minlat . "," . $maxlon . "," . $maxlat
+);
 
-header('Content-Type: text/xml');
+if ($_POST['flickrid']) {
+  $args['user_id'] = $_POST['flickrid'];
+}
+
+$f = new phpFlickr($options['flickr-key']);
+
+$results = $f->photos_search($args);
+
+header('Content-Type: text/plain');
+
+foreach ($results['photo'] as $photo) {
+  $photo = $f->photos_getInfo($photo['id'], $photo['secret']);
+
+  $url = 'http://www.flickr.com/photos/' . $photo['owner'] . '/' . $photo['id'];
+  $thumbnail = 'http://farm' . $photo['farm'] . '.staticflickr.com/' . $photo['server'] . '/' . $photo['id'] . '_' . $photo['secret'] . '_t.jpg';
+  $title = $photo['title'];
+  $long = $photo['location']['longitude'];
+  $lat = $photo['location']['latitude'];
+
+  $pt = $gpx->addWaypoint($long, $lat);
+  $pt->setName($title);
+  $pt->setLink($url);
+  $pt->setThumbnail($thumbnail);
+}
 
 echo $gpx;
 

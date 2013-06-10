@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 define('NS_GPX', 'http://www.topografix.com/GPX/1/1');
+define('NS_GPT', 'http://www.fractalbrew.com.com/GPT/1/0');
 
 class DOMWrapper {
   protected $xml = NULL;
@@ -17,13 +18,9 @@ class DOMWrapper {
     $this->xml->removeChild($this->xml);
   }
 
-  protected function getChildren($name, $namespace = NS_GPX, $xml = NULL) {
-    if ($xml === NULL) {
-      $xml = $this->xml;
-    }
-
+  protected function getChildren($name, $namespace = NS_GPX) {
     $children = array();
-    $node = $xml->firstChild;
+    $node = $this->xml->firstChild;
 
     while ($node) {
       if (($node->nodeType == XML_ELEMENT_NODE) && ($node->namespaceURI == $namespace) && ($node->localName == $name)) {
@@ -36,24 +33,49 @@ class DOMWrapper {
     return $children;
   }
 
-  protected function getValue($name) {
-    $values = $this->getChildren($name);
+  protected function getExtension($namespace, $name) {
+    $children = $this->getChildren('extensions');
+    if (count($children) == 0) {
+      return NULL;
+    }
+
+    $extensions = new Extensions($children[0]);
+    return $extensions->getValue($name, $namespace);
+  }
+
+  protected function setExtension($namespace, $name, $value) {
+    $children = $this->getChildren('extensions');
+    if (count($children) == 0) {
+      $ext = $this->xml->ownerDocument->createElementNS(NS_GPX, 'extensions');
+      $this->append($ext);
+      $extensions = new Extensions($ext);
+    }
+    else {
+      $extensions = new Extensions($children[0]);
+    }
+
+    return $extensions->setValue($name, $value, $namespace);
+  }
+
+  protected function getValue($name, $namespace = NS_GPX) {
+    $values = $this->getChildren($name, $namespace);
 
     if (count($values) == 0) {
-      return "";
+      return NULL;
     }
 
     return $values[0]->textContent;
   }
 
-  protected function setValue($name, $value) {
-    $values = $this->getChildren($name);
+  protected function setValue($name, $value, $namespace = NS_GPX) {
+    $values = $this->getChildren($name, $namespace);
     foreach ($values as $value) {
       $this->xml->removeChild($value);
     }
 
-    $value = new DOMElement($name, NS_GPX, $value);
-    $this->append($value);
+    $node = $this->xml->ownerDocument->createElementNS($namespace, $name);
+    $node->appendChild($this->xml->ownerDocument->createTextNode($value));
+    $this->append($node);
   }
 
   protected function wrapChildren($name, $class, $namespace = NS_GPX) {
@@ -71,7 +93,7 @@ class DOMWrapper {
     $pos = array_search($element->localName, $this->schema);
 
     if ($pos === FALSE) {
-      throw new Exception("Attempting to add invalid element");
+      throw new Exception("Attempting to add invalid " . $element->localName . " element to schema " . count($this->schema));
     }
 
     $node = $this->xml->lastChild;
@@ -91,49 +113,75 @@ class DOMWrapper {
   }
 }
 
+class Extensions extends DOMWrapper {
+  protected function append($element) {
+    $this->xml->appendChild($element);
+  }
+}
+
 class NamedWrapper extends DOMWrapper {
   public function getName() {
     return $this->getValue('name');
+  }
+
+  public function setName($value) {
+    $this->setValue('name', $value);
   }
 
   public function getDescription() {
     return $this->getValue('desc');
   }
 
+  public function setDescription($value) {
+    $this->setValue('desc', $value);
+  }
+
   public function getLink() {
     return $this->getValue('link');
+  }
+
+  public function setLink($value) {
+    $this->setValue('link', $value);
   }
 }
 
 class Waypoint extends NamedWrapper {
   protected $schema = array('ele', 'time', 'magvar', 'geoidheight', 'name', 'cmt', 'desc', 'src', 'link', 'sym', 'type', 'fix', 'sat', 'hdop', 'vdop', 'pdop', 'ageofdgpsdata', 'dgpsid', 'extensions');
 
-  public static function create($type, $long, $lat) {
-    $xml = new DOMElement($type, NULL, NS_GPX);
+  public static function create($doc, $type, $long, $lat) {
+    $xml = $doc->createElementNS(NS_GPX, $type);
     $xml->setAttribute("lat", $lat);
     $xml->setAttribute("lon", $long);
     return new Waypoint($xml);
   }
 
   public function getLatitude() {
-    return $this->xml->getAttribute("lat");
+    return $this->xml->getAttribute('lat');
   }
 
   public function getLongitude() {
-    return $this->xml->getAttribute("lon");
+    return $this->xml->getAttribute('lon');
   }
 
   public function getTime() {
     $time = $this->getValue('time');
     return new DateTime($time);
   }
+
+  public function getThumbnail() {
+    return $this->getExtension(NS_GPT, 'thumbnail');
+  }
+
+  public function setThumbnail($value) {
+    $this->setExtension(NS_GPT, 'thumbnail', $value);
+  }
 }
 
 class Track extends NamedWrapper {
   protected $schema = array('name', 'cmt', 'desc', 'src', 'link', 'number', 'type', 'extensions', 'trkseg');
 
-  public static function create() {
-    return new Track(new DOMElement('trk', NULL, NS_GPX));
+  public static function create($doc) {
+    return new Track($doc->createElementNS(NS_GPX, 'trk'));
   }
 
   public function getSegments() {
@@ -141,16 +189,17 @@ class Track extends NamedWrapper {
   }
 
   public function addSegment() {
-    $seg = TrackSegment::create();
-    $this->append($seg);
+    $seg = TrackSegment::create($this->xml->ownerDocument);
+    $this->append($seg->xml);
+    return $seg;
   }
 }
 
 class TrackSegment extends DOMWrapper {
   protected $schema = array('trkpt', 'extensions');
 
-  public static function create() {
-    return new TrackSegment(new DOMElement('trkseg', NULL, NS_GPX));
+  public static function create($doc) {
+    return new TrackSegment($doc->createElementNS(NS_GPX, 'trkseg'));
   }
 
   public function getPoints() {
@@ -158,15 +207,17 @@ class TrackSegment extends DOMWrapper {
   }
 
   public function addPoint($long, $lat) {
-    $pt = Waypoint::create('trkpt', $long, $lat);
-    $this->append($pt);
+    $pt = Waypoint::create($this->xml->ownerDocument, 'trkpt', $long, $lat);
+    $this->append($pt->xml);
+    return $pt;
   }
 }
 
 class Route extends NamedWrapper {
   protected $schema = array('name', 'cmt', 'desc', 'src', 'link', 'number', 'type', 'extensions', 'rtept');
 
-  public static function create() {
+  public static function create($doc) {
+    return new Route($doc->createElementNS(NS_GPX, 'rte'));
   }
 
   public function getPoints() {
@@ -174,12 +225,15 @@ class Route extends NamedWrapper {
   }
 
   public function addPoint($long, $lat) {
-    $pt = Waypoint::create('rtept', $long, $lat);
-    $this->append($pt);
+    $pt = Waypoint::create($this->xml->ownerDocument, 'rtept', $long, $lat);
+    $this->append($pt->xml);
+    return $pt;
   }
 }
 
 class GPX extends DOMWrapper {
+  protected $schema = array('metadata', 'wpt', 'rte', 'trk', 'extensions');
+
   private $doc;
 
   public function __construct($doc) {
@@ -200,8 +254,9 @@ class GPX extends DOMWrapper {
   }
 
   public function addWaypoint($long, $lat) {
-    $pt = Waypoint::create('wpt', $long, $lat);
-    $this->append($pt);
+    $pt = Waypoint::create($this->doc, 'wpt', $long, $lat);
+    $this->append($pt->xml);
+    return $pt;
   }
 
   public function getRoutes() {
@@ -209,8 +264,9 @@ class GPX extends DOMWrapper {
   }
 
   public function addRoute() {
-    $rt = Route::create('rte');
-    $this->append($rt);
+    $rt = Route::create($this->doc);
+    $this->append($rt->xml);
+    return $rt;
   }
 
   public function getTracks() {
@@ -218,8 +274,9 @@ class GPX extends DOMWrapper {
   }
 
   public function addTrack() {
-    $trk = Track::create();
-    $this->append($trk);
+    $trk = Track::create($this->doc);
+    $this->append($trk->xml);
+    return $trk;
   }
 }
 
