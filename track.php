@@ -23,10 +23,28 @@ $bounds = $gpx->getBounds();
   </style>
   <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&amp;sensor=false"></script>
   <script>
-var map;
+function addWaypoint(map, latlng, name, thumbnail, link) {
+  var infowindow = new google.maps.InfoWindow({
+    content: '<div id="content">\n' +
+'  <h3>' + name + '</h3>\n' +
+'  <p style="text-align: center"><a href="' + link + '" target="_blank"><img src="' + thumbnail + '"></a></p>\n' +
+'</div>'
+  });
+
+  var marker = new google.maps.Marker({
+    position: latlng,
+    map: map,
+    title: name
+  });
+
+  google.maps.event.addListener(marker, 'click', function() {
+    infowindow.open(map, marker);
+  });
+}
+
 function initialize() {
-  var sw = new google.maps.LatLng(<?= $bounds['latitude']['min'] ?>, <?= $bounds['longitude']['min'] ?>);
-  var ne = new google.maps.LatLng(<?= $bounds['latitude']['max'] ?>, <?= $bounds['longitude']['max'] ?>);
+  var sw = new google.maps.LatLng(<?= (float)$bounds['latitude']['min'] ?>, <?= (float)$bounds['longitude']['min'] ?>);
+  var ne = new google.maps.LatLng(<?= (float)$bounds['latitude']['max'] ?>, <?= (float)$bounds['longitude']['max'] ?>);
   var bounds = new google.maps.LatLngBounds(sw, ne);
   var options = {
     zoom: 8,
@@ -46,7 +64,7 @@ function draw_line($route) {
     path: [
 <?php
   foreach ($route->getPoints() as $point) {
-    echo '      new google.maps.LatLng(' . $point->getLatitude() . ', ' . $point->getLongitude() ."),\n";
+    echo '      new google.maps.LatLng(' . (float)$point->getLatitude() . ', ' . (float)$point->getLongitude() ."),\n";
   }
 ?>
     ],
@@ -55,6 +73,14 @@ function draw_line($route) {
     strokeWeight: 2
   })).setMap(map);
 <?php
+}
+
+function jsize($str) {
+  if ($str) {
+    return '"' . addslashes($str) . '"';
+  }
+
+  return 'null';
 }
 
 foreach ($gpx->getTracks() as $track) {
@@ -67,6 +93,23 @@ foreach ($gpx->getRoutes() as $route) {
   draw_line($route);
 }
 
+foreach ($gpx->getWaypoints() as $point) {
+  $name = $point->getName();
+  $thumb = $point->getThumbnail();
+  $link = $point->getLink();
+
+  if (!$name && !$thumb) {
+    continue;
+  }
+
+  $name = jsize($name);
+  $thumb = jsize($thumb);
+  $link = jsize($link);
+?>
+  addWaypoint(map, new google.maps.LatLng(<?= (float)$point->getLatitude() ?>, <?= (float)$point->getLongitude() ?>),
+              <?= $name ?>, <?= $thumb ?>, <?= $link ?>);
+<?php
+}
 ?>
 }
 
