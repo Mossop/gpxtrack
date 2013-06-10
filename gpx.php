@@ -6,6 +6,37 @@
 define('NS_GPX', 'http://www.topografix.com/GPX/1/1');
 define('NS_GPT', 'http://www.fractalbrew.com.com/GPT/1/0');
 
+function resolve_bound($b1, $b2) {
+  $result = array(
+    'min' => $b1['min'],
+    'max' => $b1['max']
+  );
+
+  if ($b1['min'] === NULL) {
+    $result['min'] = $b2['min'];
+  }
+  else if ($b2['min'] !== NULL) {
+    $result['min'] = min($b1['min'], $b2['min']);
+  }
+
+  if ($b1['max'] === NULL) {
+    $result['max'] = $b2['max'];
+  }
+  else if ($b2['max'] !== NULL) {
+    $result['max'] = max($b1['max'], $b2['max']);
+  }
+
+  return $result;
+}
+
+function resolve_bounds($b1, $b2) {
+  $result = array();
+  $result['longitude'] = resolve_bound($b1['longitude'], $b2['longitude']);
+  $result['latitude'] = resolve_bound($b1['latitude'], $b2['latitude']);
+  $result['time'] = resolve_bound($b1['lattimeitude'], $b2['time']);
+  return $result;
+}
+
 class DOMWrapper {
   protected $xml = NULL;
   protected $schema = array();
@@ -155,6 +186,23 @@ class Waypoint extends NamedWrapper {
     return new Waypoint($xml);
   }
 
+  public function getBounds() {
+    return array(
+      'longitude' => array(
+        'min' => $this->getLongitude(),
+        'max' => $this->getLongitude(),
+       ),
+      'latitude' => array(
+        'min' => $this->getLatitude(),
+        'max' => $this->getLatitude(),
+       ),
+      'time' => array(
+        'min' => $this->getTime(),
+        'max' => $this->getTime()
+       )
+    );
+  }
+
   public function getLatitude() {
     return $this->xml->getAttribute('lat');
   }
@@ -184,6 +232,31 @@ class Track extends NamedWrapper {
     return new Track($doc->createElementNS(NS_GPX, 'trk'));
   }
 
+  public function getBounds() {
+    $bounds = array(
+      'longitude' => array(
+        'min' => NULL,
+        'max' => NULL,
+       ),
+      'latitude' => array(
+        'min' => NULL,
+        'max' => NULL,
+       ),
+      'time' => array(
+        'min' => NULL,
+        'max' => NULL
+       )
+    );
+
+    $segments = $this->getSegments();
+    foreach ($segments as $segment) {
+      $newbounds = $segment->getBounds();
+      $bounds = resolve_bounds($bounds, $newbounds);
+    }
+
+    return $bounds;
+  }
+
   public function getSegments() {
     return $this->wrapChildren('trkseg', 'TrackSegment');
   }
@@ -202,6 +275,31 @@ class TrackSegment extends DOMWrapper {
     return new TrackSegment($doc->createElementNS(NS_GPX, 'trkseg'));
   }
 
+  public function getBounds() {
+    $bounds = array(
+      'longitude' => array(
+        'min' => NULL,
+        'max' => NULL,
+       ),
+      'latitude' => array(
+        'min' => NULL,
+        'max' => NULL,
+       ),
+      'time' => array(
+        'min' => NULL,
+        'max' => NULL
+       )
+    );
+
+    $points = $this->getPoints();
+    foreach ($points as $point) {
+      $newbounds = $point->getBounds();
+      $bounds = resolve_bounds($bounds, $newbounds);
+    }
+
+    return $bounds;
+  }
+
   public function getPoints() {
     return $this->wrapChildren('trkpt', 'Waypoint');
   }
@@ -218,6 +316,31 @@ class Route extends NamedWrapper {
 
   public static function create($doc) {
     return new Route($doc->createElementNS(NS_GPX, 'rte'));
+  }
+
+  public function getBounds() {
+    $bounds = array(
+      'longitude' => array(
+        'min' => NULL,
+        'max' => NULL,
+       ),
+      'latitude' => array(
+        'min' => NULL,
+        'max' => NULL,
+       ),
+      'time' => array(
+        'min' => NULL,
+        'max' => NULL
+       )
+    );
+
+    $points = $this->getPoints();
+    foreach ($points as $point) {
+      $newbounds = $point->getBounds();
+      $bounds = resolve_bounds($bounds, $newbounds);
+    }
+
+    return $bounds;
   }
 
   public function getPoints() {
@@ -247,6 +370,43 @@ class GPX extends DOMWrapper {
 
   public function __toString() {
     return $this->doc->saveXML();
+  }
+
+  public function getBounds() {
+    $bounds = array(
+      'longitude' => array(
+        'min' => NULL,
+        'max' => NULL,
+       ),
+      'latitude' => array(
+        'min' => NULL,
+        'max' => NULL,
+       ),
+      'time' => array(
+        'min' => NULL,
+        'max' => NULL
+       )
+    );
+
+    $items = $this->getWaypoints();
+    foreach ($items as $item) {
+      $newbounds = $item->getBounds();
+      $bounds = resolve_bounds($bounds, $newbounds);
+    }
+
+    $items = $this->getTracks();
+    foreach ($items as $item) {
+      $newbounds = $item->getBounds();
+      $bounds = resolve_bounds($bounds, $newbounds);
+    }
+
+    $items = $this->getRoutes();
+    foreach ($items as $item) {
+      $newbounds = $item->getBounds();
+      $bounds = resolve_bounds($bounds, $newbounds);
+    }
+
+    return $bounds;
   }
 
   public function getWaypoints() {
